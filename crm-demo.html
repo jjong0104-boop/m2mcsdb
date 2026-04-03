@@ -386,21 +386,28 @@ const SUPABASE_KEY = 'sb_publishable_sYQleze-9d9RMk46JOpBcA_HwJ3oWO0';
 // ════════════════════════════════
 const DETAIL_SECTIONS = [
   { title:'기본 정보', fields:[
-    {key:'month',label:'개통년월'},{key:'agent',label:'액티브담당자'},
-    {key:'company',label:'유치업체명'},{key:'name',label:'고객명'},
-    {key:'bizname',label:'상호명'},{key:'biznum',label:'사업자번호'},
+    {key:'open_date',label:'개통연월일'},
+    {key:'agent',label:'유치자'},
+    {key:'name',label:'고객명'},
+    {key:'bizname',label:'상호명'},
+    {key:'biznum',label:'사업자번호'},
   ]},
   { title:'계약 정보', fields:[
-    {key:'opennum',label:'개통번호',mono:true},{key:'account',label:'청구계정번호',mono:true},
-    {key:'subnum',label:'가입번호',mono:true},{key:'plan',label:'요금제'},
+    {key:'opennum',label:'개통번호',mono:true},
+    {key:'account',label:'청구계정번호',mono:true},
+    {key:'subnum',label:'가입번호',mono:true},
+    {key:'plan',label:'요금제'},
   ]},
   { title:'단말 / USIM', fields:[
-    {key:'device',label:'단말'},{key:'deviceSerial',label:'단말 일련'},
-    {key:'usimName',label:'USIM 명칭'},{key:'usimSerial',label:'USIM 일련'},
-    {key:'usimFee',label:'USIM(2,000)'},
+    {key:'device',label:'단말'},
+    {key:'deviceSerial',label:'단말 일련'},
+    {key:'usimName',label:'USIM 명칭'},
+    {key:'usimSerial',label:'USIM 일련'},
   ]},
   { title:'수수료 / 지급', fields:[
-    {key:'payMethod',label:'지급 방법'},{key:'dealerFee',label:'딜러수수료'},
+    {key:'dealerFee',label:'딜러수수료'},
+    {key:'companyFee',label:'당사수수료'},
+    {key:'subsidy',label:'지원금'},
   ]},
 ];
 
@@ -619,12 +626,28 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
 
     filtered = [...allData];
 
+    // 전체 건수 (조건 없이)
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/m2mcsdb?select=id`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'count=exact', 'Range': '0-0' }
     });
     const total = countRes.headers.get('content-range')?.split('/')[1] || allData.length;
     document.getElementById('total-count').textContent = Number(total).toLocaleString();
-    document.getElementById('filtered-count').textContent = allData.length.toLocaleString();
+
+    // 검색 조건이 있으면 실제 검색 결과 건수도 별도 조회
+    if(q || agent || dateFrom || dateTo) {
+      let countUrl = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=id`;
+      if(q) countUrl += `&or=(name.ilike.*${encodeURIComponent(q)}*,bizname.ilike.*${encodeURIComponent(q)}*,account.ilike.*${encodeURIComponent(q)}*,subnum.ilike.*${encodeURIComponent(q)}*,opennum.ilike.*${encodeURIComponent(q)}*,biznum.ilike.*${encodeURIComponent(q)}*,memo.ilike.*${encodeURIComponent(q)}*)`;
+      if(agent) countUrl += `&agent=eq.${encodeURIComponent(agent)}`;
+      if(dateFrom) countUrl += `&open_date=gte.${dateFrom}`;
+      if(dateTo) countUrl += `&open_date=lte.${dateTo}`;
+      const filteredCountRes = await fetch(countUrl, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'count=exact', 'Range': '0-0' }
+      });
+      const filteredTotal = filteredCountRes.headers.get('content-range')?.split('/')[1] || allData.length;
+      document.getElementById('filtered-count').textContent = Number(filteredTotal).toLocaleString();
+    } else {
+      document.getElementById('filtered-count').textContent = Number(total).toLocaleString();
+    }
 
     const asel = document.getElementById('agent-filter');
     const existing = [...asel.options].map(o=>o.value);
