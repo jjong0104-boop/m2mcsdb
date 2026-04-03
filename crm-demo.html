@@ -205,10 +205,16 @@
   <div class="controls">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" id="search-input" placeholder="고객명, 상호명, 계정번호, 개통번호, 가입번호, 메모 검색...">
+      <input type="text" id="search-input" placeholder="고객명, 상호명, 계정번호, 개통번호, 가입번호, 메모 검색..." onkeydown="if(event.key==='Enter')applyFilters()">
     </div>
+    <button class="btn btn-accent" onclick="applyFilters()">검색</button>
     <select id="agent-filter"><option value="">담당자 전체</option></select>
-    <select id="month-filter"><option value="">개통월 전체</option></select>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <span style="font-size:12px;color:var(--text2);white-space:nowrap;">개통일</span>
+      <input type="date" id="date-from" style="padding:7px 10px;font-size:13px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;cursor:pointer;">
+      <span style="color:var(--text3);">~</span>
+      <input type="date" id="date-to" style="padding:7px 10px;font-size:13px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;cursor:pointer;">
+    </div>
     <div class="dl-wrap">
       <button class="btn btn-green" onclick="toggleDlMenu()">⬇ 다운로드</button>
       <div class="dl-menu" id="dl-menu">
@@ -428,7 +434,7 @@ DEMO_CRM.forEach(d=>{memos[d.account]=d.memo||'';});
 let allData=DEMO_CRM.map(d=>({...d}));
 let filtered=[...allData];
 let sortKey='',sortDir=1,currentPage=1;
-const PAGE_SIZE=12;
+const PAGE_SIZE=100;
 let currentRecord=null;
 const selectedSet=new Set();
 
@@ -571,53 +577,48 @@ function init(){
 }
 
 // Supabase에서 검색 결과 가져오기
-async function loadFromSupabase(q='', agent='', month='') {
+async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
   document.getElementById('total-count').textContent='로딩 중...';
   document.getElementById('filtered-count').textContent='...';
 
   try {
-    // 검색 쿼리 구성
     let url = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=*&limit=500&order=open_date.desc`;
 
-    // 검색어 필터
     if(q) {
       url += `&or=(name.ilike.*${encodeURIComponent(q)}*,bizname.ilike.*${encodeURIComponent(q)}*,account.ilike.*${encodeURIComponent(q)}*,subnum.ilike.*${encodeURIComponent(q)}*,opennum.ilike.*${encodeURIComponent(q)}*,biznum.ilike.*${encodeURIComponent(q)}*,memo.ilike.*${encodeURIComponent(q)}*)`;
     }
     if(agent) url += `&agent=eq.${encodeURIComponent(agent)}`;
-    if(month) url += `&open_date=like.${encodeURIComponent(month)}*`;
+    if(dateFrom) url += `&open_date=gte.${dateFrom}`;
+    if(dateTo) url += `&open_date=lte.${dateTo}`;
 
     const res = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      }
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
     });
     const data = await res.json();
 
-    // DB 컬럼명 → CRM 내부 키 매핑
     allData = data.map(d=>({
-      agent:     d.agent||'',
-      month:     d.open_date ? d.open_date.substring(0,7) : '',
-      name:      d.name||'',
-      bizname:   d.bizname||'',
-      biznum:    d.biznum||'',
-      opennum:   d.opennum||'',
-      account:   d.account||'',
-      subnum:    d.subnum||'',
-      plan:      d.plan||'',
-      device:    d.device||'',
+      agent:      d.agent||'',
+      open_date:  d.open_date||'',
+      month:      d.open_date ? d.open_date.substring(0,7) : '',
+      name:       d.name||'',
+      bizname:    d.bizname||'',
+      biznum:     d.biznum||'',
+      opennum:    d.opennum||'',
+      account:    d.account||'',
+      subnum:     d.subnum||'',
+      plan:       d.plan||'',
+      device:     d.device||'',
       deviceSerial: d.device_serial||'',
-      usimName:  d.usim_name||'',
-      usimSerial:d.usim_serial||'',
-      subsidy:   d.subsidy||'',
-      dealerFee: d.dealer_fee||'',
-      companyFee:d.company_fee||'',
-      memo:      d.memo||'',
+      usimName:   d.usim_name||'',
+      usimSerial: d.usim_serial||'',
+      subsidy:    d.subsidy||'',
+      dealerFee:  d.dealer_fee||'',
+      companyFee: d.company_fee||'',
+      memo:       d.memo||'',
     }));
 
     filtered = [...allData];
 
-    // 총 건수 별도 조회
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/m2mcsdb?select=id`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'count=exact', 'Range': '0-0' }
     });
@@ -625,18 +626,10 @@ async function loadFromSupabase(q='', agent='', month='') {
     document.getElementById('total-count').textContent = Number(total).toLocaleString();
     document.getElementById('filtered-count').textContent = allData.length.toLocaleString();
 
-    // 담당자 필터 옵션 구성
     const asel = document.getElementById('agent-filter');
     const existing = [...asel.options].map(o=>o.value);
     const agents = [...new Set(allData.map(d=>d.agent).filter(Boolean))].sort();
     agents.forEach(a=>{ if(!existing.includes(a)){ const o=document.createElement('option');o.value=a;o.textContent=a;asel.appendChild(o); }});
-
-    // 개통월 필터 옵션 구성
-    const msel = document.getElementById('month-filter');
-    const existingM = [...msel.options].map(o=>o.value);
-    const months = [...new Set(allData.map(d=>d.month).filter(Boolean))].sort().reverse();
-    months.forEach(m=>{ if(!existingM.includes(m)){ const o=document.createElement('option');o.value=m;o.textContent=m;msel.appendChild(o); }});
-
     document.getElementById('agent-count').textContent = agents.length;
     document.getElementById('conn-status').textContent = '● Supabase 연결됨';
 
@@ -654,16 +647,16 @@ async function loadFromSupabase(q='', agent='', month='') {
 function applyFilters(){
   const q=document.getElementById('search-input').value.trim().toLowerCase();
   const agent=document.getElementById('agent-filter').value;
-  const month=document.getElementById('month-filter').value;
-
-  // 검색어가 있으면 Supabase에서 새로 조회
-  loadFromSupabase(q, agent, month);
+  const dateFrom=document.getElementById('date-from').value;
+  const dateTo=document.getElementById('date-to').value;
+  loadFromSupabase(q, agent, dateFrom, dateTo);
 }
 
 function resetFilters(){
   document.getElementById('search-input').value='';
   document.getElementById('agent-filter').value='';
-  document.getElementById('month-filter').value='';
+  document.getElementById('date-from').value='';
+  document.getElementById('date-to').value='';
   sortKey='';sortDir=1;
   document.querySelectorAll('.si').forEach(e=>{e.textContent='↕';e.style.color='';});
   loadFromSupabase();
@@ -672,12 +665,14 @@ function resetFilters(){
 function renderFilterTags(){
   const q=document.getElementById('search-input').value.trim();
   const agent=document.getElementById('agent-filter').value;
-  const month=document.getElementById('month-filter').value;
+  const dateFrom=document.getElementById('date-from').value;
+  const dateTo=document.getElementById('date-to').value;
   const wrap=document.getElementById('filter-tags');wrap.innerHTML='';
   if(q) wrap.innerHTML+=`<div class="filter-tag">검색: "${q}" <span class="remove" onclick="clearQ()">✕</span></div>`;
   if(agent) wrap.innerHTML+=`<div class="filter-tag">담당자: ${agent} <span class="remove" onclick="clearAgent()">✕</span></div>`;
-  if(month) wrap.innerHTML+=`<div class="filter-tag">개통월: ${month} <span class="remove" onclick="clearMonth()">✕</span></div>`;
-  if(!q&&!agent&&!month) wrap.innerHTML=`<span class="result-count">최근 500건 표시 중 (검색으로 전체 조회 가능)</span>`;
+  if(dateFrom) wrap.innerHTML+=`<div class="filter-tag">시작일: ${dateFrom} <span class="remove" onclick="document.getElementById('date-from').value='';applyFilters()">✕</span></div>`;
+  if(dateTo) wrap.innerHTML+=`<div class="filter-tag">종료일: ${dateTo} <span class="remove" onclick="document.getElementById('date-to').value='';applyFilters()">✕</span></div>`;
+  if(!q&&!agent&&!dateFrom&&!dateTo) wrap.innerHTML=`<span class="result-count">최근 500건 표시 중 (검색 또는 날짜로 전체 조회 가능)</span>`;
 }
 function clearQ(){document.getElementById('search-input').value='';applyFilters();}
 function clearAgent(){document.getElementById('agent-filter').value='';applyFilters();}
@@ -892,9 +887,8 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove('show'),3000);
 }
 
-document.getElementById('search-input').addEventListener('input',applyFilters);
-document.getElementById('agent-filter').addEventListener('change',applyFilters);
-document.getElementById('month-filter').addEventListener('change',applyFilters);
+document.getElementById('search-input').addEventListener('input', ()=>{});
+document.getElementById('agent-filter').addEventListener('change', applyFilters);
 document.getElementById('ab-search').addEventListener('input',filterAB);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeMemoPopup();}});
 
