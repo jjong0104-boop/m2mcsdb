@@ -287,7 +287,7 @@
       <div class="stat-label">동기화 상태</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
         <div class="sync-dot" id="sync-dot"></div>
-        <span style="font-size:13px;font-weight:500;" id="sync-label">구글 시트 실시간 연동</span>
+        <span style="font-size:13px;font-weight:500;" id="sync-label">Supabase 연결됨</span>
         <span style="font-size:12px;color:var(--text3);" id="sync-time"></span>
       </div>
     </div>
@@ -296,10 +296,10 @@
   <div class="controls">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" id="ab-search" placeholder="회사명, 담당자, 대표자, 연락처, 이메일 검색...">
+      <input type="text" id="ab-search" placeholder="업체명, 담당자, 대표자, 연락처 검색..." onkeydown="if(event.key==='Enter')filterAB()">
     </div>
-    <button class="btn btn-green" onclick="syncAddressbook()">🔄 지금 동기화</button>
-    <button class="btn btn-ghost" onclick="downloadAB()">⬇ 주소록 다운로드</button>
+    <button class="btn btn-accent" onclick="filterAB()">검색</button>
+    <button class="btn btn-green" onclick="openAbModal()">➕ 신규 등록</button>
     <button class="btn btn-ghost" onclick="document.getElementById('ab-search').value='';filterAB()">초기화</button>
   </div>
 
@@ -310,13 +310,14 @@
       <table>
         <thead>
           <tr>
-            <th class="sortable" onclick="sortAB('company')">회사명 <span class="si" id="ab-sort-company">↕</span></th>
-            <th class="sortable" onclick="sortAB('biznum')">사업자등록번호 <span class="si" id="ab-sort-biznum">↕</span></th>
-            <th class="sortable" onclick="sortAB('manager')">담당자 <span class="si" id="ab-sort-manager">↕</span></th>
-            <th class="sortable" onclick="sortAB('ceo')">대표자 <span class="si" id="ab-sort-ceo">↕</span></th>
+            <th class="sortable" onclick="sortAB('company')">업체명 <span class="si" id="ab-sort-company">↕</span></th>
+            <th class="sortable" onclick="sortAB('ceo')">대표자명 <span class="si" id="ab-sort-ceo">↕</span></th>
+            <th class="sortable" onclick="sortAB('manager')">담당자명 <span class="si" id="ab-sort-manager">↕</span></th>
             <th class="sortable" onclick="sortAB('phone')">연락처 <span class="si" id="ab-sort-phone">↕</span></th>
-            <th class="sortable" onclick="sortAB('email')">이메일 <span class="si" id="ab-sort-email">↕</span></th>
             <th>주소</th>
+            <th class="sortable" onclick="sortAB('email')">이메일 <span class="si" id="ab-sort-email">↕</span></th>
+            <th>메모</th>
+            <th style="width:80px;text-align:center;">관리</th>
           </tr>
         </thead>
         <tbody id="ab-table-body"></tbody>
@@ -328,6 +329,52 @@
     </div>
   </div>
 </div>
+</div>
+
+<!-- 주소록 추가/수정 모달 -->
+<div class="modal-overlay" id="ab-modal" onclick="closeAbModalOutside(event)">
+  <div class="modal" style="width:520px;">
+    <div class="modal-header">
+      <div><div class="modal-title" id="ab-modal-title">신규 업체 등록</div></div>
+      <button class="modal-close" onclick="closeAbModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid" style="gap:16px;">
+        <div class="detail-item full">
+          <div class="detail-label">업체명 *</div>
+          <input type="text" id="ab-f-company" placeholder="업체명 입력" style="width:100%;">
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">대표자명</div>
+          <input type="text" id="ab-f-ceo" placeholder="대표자명" style="width:100%;">
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">담당자명</div>
+          <input type="text" id="ab-f-manager" placeholder="담당자명" style="width:100%;">
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">연락처</div>
+          <input type="text" id="ab-f-phone" placeholder="010-0000-0000" style="width:100%;">
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">이메일</div>
+          <input type="text" id="ab-f-email" placeholder="email@example.com" style="width:100%;">
+        </div>
+        <div class="detail-item full">
+          <div class="detail-label">주소</div>
+          <input type="text" id="ab-f-address" placeholder="주소 입력" style="width:100%;">
+        </div>
+        <div class="detail-item full">
+          <div class="detail-label">메모</div>
+          <textarea id="ab-f-memo" placeholder="메모 입력" style="width:100%;min-height:70px;resize:vertical;"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeAbModal()">취소</button>
+      <button class="btn-save" id="ab-modal-save-btn" onclick="saveAbRecord()">저장</button>
+    </div>
+  </div>
 </div>
 
 <!-- Detail Modal -->
@@ -372,7 +419,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active', (i===0&&tab==='crm')||(i===1&&tab==='ab')));
   document.getElementById('tab-crm').classList.toggle('active', tab==='crm');
   document.getElementById('tab-ab').classList.toggle('active', tab==='ab');
-  if(tab==='ab' && abData.length===0) syncAddressbook();
+  if(tab==='ab' && abData.length===0) loadAddressbook();
 }
 
 // ════════════════════════════════
@@ -449,48 +496,43 @@ let abData=[];
 let abFiltered=[];
 
 // ════════════════════════════════
-// 주소록: 구글 시트 동기화
+// 주소록: Supabase CRUD
 // ════════════════════════════════
-// 실제 Supabase 연결 시 아래 함수를 교체하세요
-async function syncAddressbook() {
+let abSortKey='', abSortDir=1, abPage=1;
+const AB_PAGE_SIZE=20;
+let abEditId=null; // 수정 중인 레코드 id
+
+async function loadAddressbook() {
   const dot=document.getElementById('sync-dot');
   const label=document.getElementById('sync-label');
   dot.className='sync-dot loading';
-  label.textContent='동기화 중...';
-
+  label.textContent='불러오는 중...';
   try {
-    if(SUPABASE_URL && SUPABASE_KEY) {
-      // 실제 Supabase에서 가져오기
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/addressbook?select=*&order=company`, {
-        headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
-      });
-      abData = await res.json();
-    } else {
-      // 데모 데이터 사용 (Supabase 미연결 시)
-      await new Promise(r=>setTimeout(r,800));
-      abData = DEMO_AB.map(d=>({...d}));
-    }
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/addressbook?select=*&order=company.asc`,{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
+    });
+    abData=await res.json();
     abFiltered=[...abData];
     renderAB();
     dot.className='sync-dot';
-    label.textContent='구글 시트 실시간 연동';
-    document.getElementById('sync-time').textContent='방금 동기화됨';
+    label.textContent='Supabase 연결됨';
+    document.getElementById('sync-time').textContent=`총 ${abData.length}개`;
     document.getElementById('ab-total').textContent=abData.length;
     document.getElementById('ab-filtered').textContent=abData.length;
   } catch(e) {
     dot.className='sync-dot loading';
-    label.textContent='동기화 실패';
-    showToast('⚠ 동기화 실패. 연결을 확인해주세요.');
+    label.textContent='연결 오류';
+    showToast('⚠ 주소록 불러오기 실패');
   }
 }
 
-let abSortKey='', abSortDir=1, abPage=1;
-const AB_PAGE_SIZE=12;
+// 기존 syncAddressbook 호환
+function syncAddressbook(){ loadAddressbook(); }
 
 function filterAB() {
   const q=document.getElementById('ab-search').value.trim().toLowerCase();
   abFiltered=abData.filter(d=>
-    !q||[d.company,d.manager,d.ceo,d.phone,d.email,d.biznum,d.address].some(v=>(v||'').toLowerCase().includes(q))
+    !q||[d.company,d.manager,d.ceo,d.phone,d.email,d.address,d.memo].some(v=>(v||'').toLowerCase().includes(q))
   );
   if(abSortKey) abFiltered.sort((a,b)=>(a[abSortKey]||'').localeCompare(b[abSortKey]||'')*abSortDir);
   abPage=1;
@@ -513,19 +555,22 @@ function renderAB() {
   const start=(abPage-1)*AB_PAGE_SIZE;
   const page=abFiltered.slice(start,start+AB_PAGE_SIZE);
   const q=document.getElementById('ab-search').value.trim();
-
   if(!page.length){
-    tbody.innerHTML=`<tr><td colspan="7"><div class="no-results"><div class="icon">🔍</div>검색 결과가 없습니다</div></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="8"><div class="no-results"><div class="icon">🔍</div>등록된 업체가 없습니다<br><br><button class="btn btn-accent" style="margin:0 auto" onclick="openAbModal()">➕ 첫 업체 등록하기</button></div></td></tr>`;
     renderABPagination(); return;
   }
   tbody.innerHTML=page.map(d=>`<tr>
     <td class="name">${hlAB(d.company,q)}</td>
-    <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2)">${hlAB(d.biznum,q)||'—'}</td>
-    <td class="muted">${hlAB(d.manager,q)||'—'}</td>
     <td class="muted">${hlAB(d.ceo,q)||'—'}</td>
+    <td class="muted">${hlAB(d.manager,q)||'—'}</td>
     <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent)">${hlAB(d.phone,q)||'—'}</td>
+    <td class="muted" style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.address||''}">${hlAB(d.address,q)||'—'}</td>
     <td style="font-size:13px;color:var(--accent2)">${hlAB(d.email,q)||'—'}</td>
-    <td class="muted" style="font-size:13px">${hlAB(d.address,q)||'—'}</td>
+    <td class="muted" style="font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.memo||''}">${d.memo||'—'}</td>
+    <td style="text-align:center;white-space:nowrap;">
+      <button onclick="openAbModal(${d.id})" style="background:var(--tag-bg);color:var(--accent);border:1px solid #c8d8ff;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;margin-right:4px;">수정</button>
+      <button onclick="deleteAb(${d.id},'${(d.company||'').replace(/'/g,"\\'")}' )" style="background:#fce8f3;color:#be185d;border:1px solid #f4c0d1;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;">삭제</button>
+    </td>
   </tr>`).join('');
   renderABPagination();
 }
@@ -547,6 +592,83 @@ function renderABPagination() {
     else if(Math.abs(i-abPage)===2){const sp=document.createElement('span');sp.textContent='…';sp.style.cssText='padding:0 4px;color:var(--text3);line-height:30px;';wrap.appendChild(sp);}
   }
   add('›',abPage+1,abPage===total||total===0,false);
+}
+
+// ── 주소록 모달 (추가/수정) ──
+function openAbModal(id=null) {
+  abEditId=id;
+  const isEdit=id!==null;
+  document.getElementById('ab-modal-title').textContent=isEdit?'업체 정보 수정':'신규 업체 등록';
+  document.getElementById('ab-modal-save-btn').textContent=isEdit?'수정 저장':'등록';
+  if(isEdit) {
+    const d=abData.find(x=>x.id===id);
+    if(d) {
+      document.getElementById('ab-f-company').value=d.company||'';
+      document.getElementById('ab-f-ceo').value=d.ceo||'';
+      document.getElementById('ab-f-manager').value=d.manager||'';
+      document.getElementById('ab-f-phone').value=d.phone||'';
+      document.getElementById('ab-f-email').value=d.email||'';
+      document.getElementById('ab-f-address').value=d.address||'';
+      document.getElementById('ab-f-memo').value=d.memo||'';
+    }
+  } else {
+    ['company','ceo','manager','phone','email','address','memo'].forEach(f=>document.getElementById('ab-f-'+f).value='');
+  }
+  document.getElementById('ab-modal').classList.add('open');
+}
+
+function closeAbModal(){ document.getElementById('ab-modal').classList.remove('open'); abEditId=null; }
+function closeAbModalOutside(e){ if(e.target===document.getElementById('ab-modal')) closeAbModal(); }
+
+async function saveAbRecord() {
+  const company=document.getElementById('ab-f-company').value.trim();
+  if(!company){ showToast('⚠ 업체명은 필수입니다'); return; }
+  const payload={
+    company,
+    ceo:     document.getElementById('ab-f-ceo').value.trim(),
+    manager: document.getElementById('ab-f-manager').value.trim(),
+    phone:   document.getElementById('ab-f-phone').value.trim(),
+    email:   document.getElementById('ab-f-email').value.trim(),
+    address: document.getElementById('ab-f-address').value.trim(),
+    memo:    document.getElementById('ab-f-memo').value.trim(),
+  };
+  try {
+    let res;
+    if(abEditId!==null) {
+      res=await fetch(`${SUPABASE_URL}/rest/v1/addressbook?id=eq.${abEditId}`,{
+        method:'PATCH',
+        headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'},
+        body:JSON.stringify(payload)
+      });
+    } else {
+      res=await fetch(`${SUPABASE_URL}/rest/v1/addressbook`,{
+        method:'POST',
+        headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'},
+        body:JSON.stringify(payload)
+      });
+    }
+    if(res.ok||res.status===201||res.status===204) {
+      closeAbModal();
+      await loadAddressbook();
+      showToast(abEditId!==null?'✓ 수정되었습니다':'✓ 등록되었습니다');
+    } else {
+      showToast('⚠ 저장 실패. 다시 시도해주세요.');
+    }
+  } catch(e){ showToast('⚠ 오류가 발생했습니다.'); }
+}
+
+async function deleteAb(id, name) {
+  if(!confirm(`"${name}" 업체를 삭제하시겠습니까?`)) return;
+  try {
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/addressbook?id=eq.${id}`,{
+      method:'DELETE',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
+    });
+    if(res.ok||res.status===204) {
+      await loadAddressbook();
+      showToast('✓ 삭제되었습니다');
+    } else showToast('⚠ 삭제 실패');
+  } catch(e){ showToast('⚠ 오류가 발생했습니다.'); }
 }
 
 function hlAB(str,q) {
@@ -944,7 +1066,7 @@ function showToast(msg){
 document.getElementById('search-input').addEventListener('input', ()=>{});
 document.getElementById('agent-filter').addEventListener('change', applyFilters);
 document.getElementById('ab-search').addEventListener('input',filterAB);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeMemoPopup();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeMemoPopup();closeAbModal();}});
 
 init();
 </script>
