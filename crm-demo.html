@@ -240,9 +240,8 @@
         <thead>
           <tr>
             <th class="check-col"><input type="checkbox" id="check-all" onchange="togglePageAll(this.checked)"></th>
-            <th class="sortable" onclick="sortBy('month')">개통년월 <span class="si" id="sort-month">↕</span></th>
-            <th class="sortable" onclick="sortBy('agent')">액티브담당자 <span class="si" id="sort-agent">↕</span></th>
-            <th class="sortable" onclick="sortBy('company')">유치업체명 <span class="si" id="sort-company">↕</span></th>
+            <th class="sortable" onclick="sortBy('month')">개통연월일 <span class="si" id="sort-month">↕</span></th>
+            <th class="sortable" onclick="sortBy('agent')">유치자 <span class="si" id="sort-agent">↕</span></th>
             <th class="sortable" onclick="sortBy('name')">고객명 <span class="si" id="sort-name">↕</span></th>
             <th class="sortable" onclick="sortBy('bizname')">상호명 <span class="si" id="sort-bizname">↕</span></th>
             <th class="sortable" onclick="sortBy('subnum')">가입번호 <span class="si" id="sort-subnum">↕</span></th>
@@ -578,7 +577,7 @@ async function loadFromSupabase(q='', agent='', month='') {
 
   try {
     // 검색 쿼리 구성
-    let url = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=*&limit=500`;
+    let url = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=*&limit=500&order=open_date.desc`;
 
     // 검색어 필터
     if(q) {
@@ -707,9 +706,8 @@ function renderTable(){
       <td class="check-col" onclick="event.stopPropagation()">
         <input type="checkbox" ${isSelected?'checked':''} onchange="toggleSelect('${d.account}',this.checked)" onclick="event.stopPropagation()">
       </td>
-      <td class="date">${d.month||'—'}</td>
+      <td class="date">${d.open_date||d.month||'—'}</td>
       <td>${agentBadge(d.agent)}</td>
-      <td class="muted">${hl(d.company)}</td>
       <td class="name">${hl(d.name)}</td>
       <td class="muted">${hl(d.bizname)}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${hl(d.subnum)}</td>
