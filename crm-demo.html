@@ -180,7 +180,7 @@
 <body>
 
 <div class="header">
-  <div class="logo"><div class="logo-dot"></div>액티브 무선 CS 대시보드</div>
+  <div class="logo" onclick="switchTab('crm')" style="cursor:pointer;"><div class="logo-dot"></div>엑티브 무선 CS 대시보드</div>
   <div class="header-right" id="conn-status">● Supabase 연결됨</div>
 </div>
 
@@ -332,7 +332,7 @@
 </div>
 
 <!-- 주소록 추가/수정 모달 -->
-<div class="modal-overlay" id="ab-modal" onclick="closeAbModalOutside(event)">
+<div class="modal-overlay" id="ab-modal">
   <div class="modal" style="width:520px;">
     <div class="modal-header">
       <div><div class="modal-title" id="ab-modal-title">신규 업체 등록</div></div>
@@ -420,7 +420,15 @@ function switchTab(tab) {
   document.getElementById('tab-crm').classList.toggle('active', tab==='crm');
   document.getElementById('tab-ab').classList.toggle('active', tab==='ab');
   if(tab==='ab' && abData.length===0) loadAddressbook();
+  history.pushState({tab}, '', '#'+tab);
 }
+
+window.addEventListener('popstate', e=>{
+  const tab = e.state?.tab || 'crm';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',(i===0&&tab==='crm')||(i===1&&tab==='ab')));
+  document.getElementById('tab-crm').classList.toggle('active', tab==='crm');
+  document.getElementById('tab-ab').classList.toggle('active', tab==='ab');
+});
 
 // ════════════════════════════════
 // SUPABASE 설정 (나중에 여기만 채우면 됨)
@@ -530,16 +538,23 @@ async function loadAddressbook() {
 function syncAddressbook(){ loadAddressbook(); }
 
 function filterAB() {
-  const q=document.getElementById('ab-search').value.trim().toLowerCase();
-  abFiltered=abData.filter(d=>
-    !q||[d.company,d.manager,d.ceo,d.phone,d.email,d.address,d.memo].some(v=>(v||'').toLowerCase().includes(q))
-  );
+  const raw=document.getElementById('ab-search').value.trim();
+  const q=raw.toLowerCase();
+  const qClean=q.replace(/-/g,''); // 하이픈 제거
+  abFiltered=abData.filter(d=>{
+    if(!q) return true;
+    return [d.company,d.manager,d.ceo,d.phone,d.email,d.address,d.memo].some(v=>{
+      const val=(v||'').toLowerCase();
+      const valClean=val.replace(/-/g,'');
+      return val.includes(q) || valClean.includes(qClean);
+    });
+  });
   if(abSortKey) abFiltered.sort((a,b)=>(a[abSortKey]||'').localeCompare(b[abSortKey]||'')*abSortDir);
   abPage=1;
   document.getElementById('ab-filtered').textContent=abFiltered.length;
   renderAB();
   const wrap=document.getElementById('ab-filter-tags');
-  wrap.innerHTML=q?`<div class="filter-tag">검색: "${q}" <span class="remove" onclick="document.getElementById('ab-search').value='';filterAB()">✕</span></div>`:`<span class="result-count">전체 ${abData.length}개 업체</span>`;
+  wrap.innerHTML=q?`<div class="filter-tag">검색: "${raw}" <span class="remove" onclick="document.getElementById('ab-search').value='';filterAB()">✕</span></div>`:`<span class="result-count">전체 ${abData.length}개 업체</span>`;
 }
 
 function sortAB(key) {
@@ -1066,7 +1081,7 @@ function showToast(msg){
 document.getElementById('search-input').addEventListener('input', ()=>{});
 document.getElementById('agent-filter').addEventListener('change', applyFilters);
 document.getElementById('ab-search').addEventListener('input',filterAB);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeMemoPopup();closeAbModal();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeMemoPopup();}});
 
 init();
 </script>
