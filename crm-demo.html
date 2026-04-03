@@ -317,7 +317,7 @@
             <th>주소</th>
             <th class="sortable" onclick="sortAB('email')">이메일 <span class="si" id="ab-sort-email">↕</span></th>
             <th>메모</th>
-            <th style="width:80px;text-align:center;">관리</th>
+            <th style="text-align:center;">관리 (고정 최대 10개)</th>
           </tr>
         </thead>
         <tbody id="ab-table-body"></tbody>
@@ -537,10 +537,29 @@ async function loadAddressbook() {
 // 기존 syncAddressbook 호환
 function syncAddressbook(){ loadAddressbook(); }
 
+// 고정 목록 (localStorage에 저장)
+let pinnedIds = JSON.parse(localStorage.getItem('ab_pinned')||'[]');
+const MAX_PINS = 10;
+
+function savePins(){ localStorage.setItem('ab_pinned', JSON.stringify(pinnedIds)); }
+
+function togglePin(id) {
+  if(pinnedIds.includes(id)) {
+    pinnedIds = pinnedIds.filter(x=>x!==id);
+    savePins(); renderAB();
+    showToast('📌 고정 해제됐습니다');
+  } else {
+    if(pinnedIds.length >= MAX_PINS){ showToast(`⚠ 최대 ${MAX_PINS}개까지 고정할 수 있습니다`); return; }
+    pinnedIds.push(id);
+    savePins(); renderAB();
+    showToast('📌 상단에 고정됐습니다');
+  }
+}
+
 function filterAB() {
   const raw=document.getElementById('ab-search').value.trim();
   const q=raw.toLowerCase();
-  const qClean=q.replace(/-/g,''); // 하이픈 제거
+  const qClean=q.replace(/-/g,'');
   abFiltered=abData.filter(d=>{
     if(!q) return true;
     return [d.company,d.manager,d.ceo,d.phone,d.email,d.address,d.memo].some(v=>{
@@ -549,12 +568,26 @@ function filterAB() {
       return val.includes(q) || valClean.includes(qClean);
     });
   });
-  if(abSortKey) abFiltered.sort((a,b)=>(a[abSortKey]||'').localeCompare(b[abSortKey]||'')*abSortDir);
+
+  // 기본 가나다순 정렬
+  if(abSortKey) {
+    abFiltered.sort((a,b)=>(a[abSortKey]||'').localeCompare(b[abSortKey]||'','ko')*abSortDir);
+  } else {
+    abFiltered.sort((a,b)=>(a.company||'').localeCompare(b.company||'','ko'));
+  }
+
+  // 고정 항목 최상단으로
+  abFiltered.sort((a,b)=>{
+    const ap=pinnedIds.includes(a.id)?0:1;
+    const bp=pinnedIds.includes(b.id)?0:1;
+    return ap-bp;
+  });
+
   abPage=1;
   document.getElementById('ab-filtered').textContent=abFiltered.length;
   renderAB();
   const wrap=document.getElementById('ab-filter-tags');
-  wrap.innerHTML=q?`<div class="filter-tag">검색: "${raw}" <span class="remove" onclick="document.getElementById('ab-search').value='';filterAB()">✕</span></div>`:`<span class="result-count">전체 ${abData.length}개 업체</span>`;
+  wrap.innerHTML=q?`<div class="filter-tag">검색: "${raw}" <span class="remove" onclick="document.getElementById('ab-search').value='';filterAB()">✕</span></div>`:`<span class="result-count">전체 ${abData.length}개 업체 (고정 ${pinnedIds.length}개)</span>`;
 }
 
 function sortAB(key) {
@@ -571,22 +604,28 @@ function renderAB() {
   const page=abFiltered.slice(start,start+AB_PAGE_SIZE);
   const q=document.getElementById('ab-search').value.trim();
   if(!page.length){
-    tbody.innerHTML=`<tr><td colspan="8"><div class="no-results"><div class="icon">🔍</div>등록된 업체가 없습니다<br><br><button class="btn btn-accent" style="margin:0 auto" onclick="openAbModal()">➕ 첫 업체 등록하기</button></div></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="9"><div class="no-results"><div class="icon">🔍</div>등록된 업체가 없습니다<br><br><button class="btn btn-accent" style="margin:0 auto" onclick="openAbModal()">➕ 첫 업체 등록하기</button></div></td></tr>`;
     renderABPagination(); return;
   }
-  tbody.innerHTML=page.map(d=>`<tr>
-    <td class="name">${hlAB(d.company,q)}</td>
-    <td class="muted">${hlAB(d.ceo,q)||'—'}</td>
-    <td class="muted">${hlAB(d.manager,q)||'—'}</td>
-    <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);white-space:nowrap;" title="${d.phone||''}">${hlAB(d.phone,q)||'—'}</td>
-    <td class="muted" style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;" title="${d.address||''}">${hlAB(d.address,q)||'—'}</td>
-    <td style="font-size:12px;color:var(--accent2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;" title="${d.email||''}">${hlAB(d.email,q)||'—'}</td>
-    <td class="muted" style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;" title="${d.memo||''}">${d.memo||'—'}</td>
-    <td style="text-align:center;white-space:nowrap;">
-      <button onclick="openAbModal(${d.id})" style="background:var(--tag-bg);color:var(--accent);border:1px solid #c8d8ff;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;margin-right:4px;">수정</button>
-      <button onclick="deleteAb(${d.id},'${(d.company||'').replace(/'/g,"\\'")}' )" style="background:#fce8f3;color:#be185d;border:1px solid #f4c0d1;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;">삭제</button>
-    </td>
-  </tr>`).join('');
+  tbody.innerHTML=page.map(d=>{
+    const isPinned=pinnedIds.includes(d.id);
+    const pinBtn=`<button onclick="togglePin(${d.id})" title="${isPinned?'고정 해제':'상단 고정'}" style="background:${isPinned?'#fff3e8':'var(--surface2)'};color:${isPinned?'#d97706':'var(--text3)'};border:1px solid ${isPinned?'#fcd49a':'var(--border2)'};border-radius:5px;padding:3px 7px;font-size:12px;cursor:pointer;margin-right:4px;">${isPinned?'📌':'📍'}</button>`;
+    const rowStyle=isPinned?'background:#fffbf0;border-left:3px solid #f59e0b;':'';
+    return `<tr style="${rowStyle}">
+      <td class="name">${isPinned?'<span style="color:#d97706;font-size:10px;margin-right:4px;">고정</span>':''}${hlAB(d.company,q)}</td>
+      <td class="muted">${hlAB(d.ceo,q)||'—'}</td>
+      <td class="muted">${hlAB(d.manager,q)||'—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);white-space:nowrap;" title="${d.phone||''}">${hlAB(d.phone,q)||'—'}</td>
+      <td class="muted" style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;" title="${d.address||''}">${hlAB(d.address,q)||'—'}</td>
+      <td style="font-size:12px;color:var(--accent2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;" title="${d.email||''}">${hlAB(d.email,q)||'—'}</td>
+      <td class="muted" style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;" title="${d.memo||''}">${d.memo||'—'}</td>
+      <td style="text-align:center;white-space:nowrap;">
+        ${pinBtn}
+        <button onclick="openAbModal(${d.id})" style="background:var(--tag-bg);color:var(--accent);border:1px solid #c8d8ff;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;margin-right:4px;">수정</button>
+        <button onclick="deleteAb(${d.id},'${(d.company||'').replace(/'/g,"\\'")}' )" style="background:#fce8f3;color:#be185d;border:1px solid #f4c0d1;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;">삭제</button>
+      </td>
+    </tr>`;
+  }).join('');
   renderABPagination();
 }
 
