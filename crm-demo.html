@@ -589,7 +589,7 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
   document.getElementById('filtered-count').textContent='...';
 
   try {
-    let url = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=*&limit=500&order=open_date.desc`;
+    let url = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=*&limit=500&order=open_date.desc,id.desc`;
 
     if(q) {
       // 하이픈 제거 버전도 함께 검색 (01252613624 → 012-5261-3624 도 검색)
