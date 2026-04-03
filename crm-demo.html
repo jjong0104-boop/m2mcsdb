@@ -198,7 +198,7 @@
   <div class="stats">
     <div class="stat-card"><div class="stat-label">전체 고객</div><div class="stat-value accent" id="total-count">—</div></div>
     <div class="stat-card"><div class="stat-label">검색 결과</div><div class="stat-value green" id="filtered-count">—</div></div>
-    <div class="stat-card"><div class="stat-label">액티브 담당자</div><div class="stat-value" id="agent-count">—</div></div>
+    <div class="stat-card"><div class="stat-label">유치자 수</div><div class="stat-value" id="agent-count">—</div></div>
     <div class="stat-card"><div class="stat-label">선택됨</div><div class="stat-value orange" id="selected-count">0</div></div>
   </div>
 
@@ -598,7 +598,7 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
 
     allData = data.map(d=>({
       agent:      d.agent||'',
-      open_date:  d.open_date||'',
+      open_date:  d.open_date ? d.open_date.substring(0,10) : '',
       month:      d.open_date ? d.open_date.substring(0,7) : '',
       name:       d.name||'',
       bizname:    d.bizname||'',
