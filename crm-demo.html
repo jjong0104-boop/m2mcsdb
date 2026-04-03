@@ -592,7 +592,23 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
     let url = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=*&limit=500&order=open_date.desc`;
 
     if(q) {
-      url += `&or=(name.ilike.*${encodeURIComponent(q)}*,bizname.ilike.*${encodeURIComponent(q)}*,account.ilike.*${encodeURIComponent(q)}*,subnum.ilike.*${encodeURIComponent(q)}*,opennum.ilike.*${encodeURIComponent(q)}*,biznum.ilike.*${encodeURIComponent(q)}*,memo.ilike.*${encodeURIComponent(q)}*)`;
+      // 하이픈 제거 버전도 함께 검색 (01252613624 → 012-5261-3624 도 검색)
+      const qClean = q.replace(/-/g, '');
+      const qHyphen = q.replace(/[^0-9]/g, '').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+      const searches = [q];
+      if(qClean !== q) searches.push(qClean);
+      if(qHyphen !== q && qHyphen.length > 5) searches.push(qHyphen);
+
+      const orParts = searches.flatMap(s => [
+        `name.ilike.*${encodeURIComponent(s)}*`,
+        `bizname.ilike.*${encodeURIComponent(s)}*`,
+        `account.ilike.*${encodeURIComponent(s)}*`,
+        `subnum.ilike.*${encodeURIComponent(s)}*`,
+        `opennum.ilike.*${encodeURIComponent(s)}*`,
+        `biznum.ilike.*${encodeURIComponent(s)}*`,
+        `memo.ilike.*${encodeURIComponent(s)}*`,
+      ]);
+      url += `&or=(${orParts.join(',')})`;
     }
     if(agent) url += `&agent=eq.${encodeURIComponent(agent)}`;
     if(dateFrom) url += `&open_date=gte.${dateFrom}`;
@@ -636,8 +652,23 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
     // 검색 조건이 있으면 실제 검색 결과 건수도 별도 조회
     if(q || agent || dateFrom || dateTo) {
       let countUrl = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=id`;
-      if(q) countUrl += `&or=(name.ilike.*${encodeURIComponent(q)}*,bizname.ilike.*${encodeURIComponent(q)}*,account.ilike.*${encodeURIComponent(q)}*,subnum.ilike.*${encodeURIComponent(q)}*,opennum.ilike.*${encodeURIComponent(q)}*,biznum.ilike.*${encodeURIComponent(q)}*,memo.ilike.*${encodeURIComponent(q)}*)`;
-      if(agent) countUrl += `&agent=eq.${encodeURIComponent(agent)}`;
+      if(q) {
+        const qClean = q.replace(/-/g, '');
+        const qHyphen = q.replace(/[^0-9]/g, '').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+        const searches = [q];
+        if(qClean !== q) searches.push(qClean);
+        if(qHyphen !== q && qHyphen.length > 5) searches.push(qHyphen);
+        const orParts = searches.flatMap(s => [
+          `name.ilike.*${encodeURIComponent(s)}*`,
+          `bizname.ilike.*${encodeURIComponent(s)}*`,
+          `account.ilike.*${encodeURIComponent(s)}*`,
+          `subnum.ilike.*${encodeURIComponent(s)}*`,
+          `opennum.ilike.*${encodeURIComponent(s)}*`,
+          `biznum.ilike.*${encodeURIComponent(s)}*`,
+          `memo.ilike.*${encodeURIComponent(s)}*`,
+        ]);
+        countUrl += `&or=(${orParts.join(',')})`;
+      }      if(agent) countUrl += `&agent=eq.${encodeURIComponent(agent)}`;
       if(dateFrom) countUrl += `&open_date=gte.${dateFrom}`;
       if(dateTo) countUrl += `&open_date=lte.${dateTo}`;
       const filteredCountRes = await fetch(countUrl, {
