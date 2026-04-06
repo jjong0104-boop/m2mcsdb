@@ -776,6 +776,7 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
       if(qHyphen !== q && qHyphen.length > 5) searches.push(qHyphen);
 
       const orParts = searches.flatMap(s => [
+        `agent.ilike.*${encodeURIComponent(s)}*`,
         `name.ilike.*${encodeURIComponent(s)}*`,
         `bizname.ilike.*${encodeURIComponent(s)}*`,
         `account.ilike.*${encodeURIComponent(s)}*`,
@@ -835,6 +836,7 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
         if(qClean !== q) searches.push(qClean);
         if(qHyphen !== q && qHyphen.length > 5) searches.push(qHyphen);
         const orParts = searches.flatMap(s => [
+          `agent.ilike.*${encodeURIComponent(s)}*`,
           `name.ilike.*${encodeURIComponent(s)}*`,
           `bizname.ilike.*${encodeURIComponent(s)}*`,
           `account.ilike.*${encodeURIComponent(s)}*`,
