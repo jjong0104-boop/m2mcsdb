@@ -1252,33 +1252,41 @@ async function doLogin() {
   if(!email||!pw){ err.textContent='이메일과 비밀번호를 입력해주세요.'; return; }
   btn.disabled=true; btn.textContent='로그인 중...'; err.textContent='';
   try {
-    // Supabase Auth 로그인
+    // Supabase Auth 로그인 (새 API)
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method:'POST',
-      headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({email,password:pw})
+      headers:{
+        'apikey': SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({email, password:pw})
     });
     const data = await res.json();
-    if(!res.ok||data.error){ err.textContent='이메일 또는 비밀번호가 올바르지 않습니다.'; btn.disabled=false; btn.textContent='로그인'; return; }
+
+    if(!res.ok || data.error_code || data.error) {
+      err.textContent = '이메일 또는 비밀번호가 올바르지 않습니다.';
+      btn.disabled=false; btn.textContent='로그인';
+      return;
+    }
+
+    const token = data.access_token;
 
     // users 테이블에서 이름 조회
     const uRes = await fetch(`${SUPABASE_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=name,role`, {
-      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${data.access_token}`}
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${token}`}
     });
     const uData = await uRes.json();
     const name = uData[0]?.name || email.split('@')[0];
 
-    currentUser = {email, name, token: data.access_token};
+    currentUser = {email, name, token};
     localStorage.setItem('bridge_session', JSON.stringify(currentUser));
 
-    // 로그인 성공 처리
     onLoginSuccess();
-
-    // 로그 기록
     await recordLog('로그인', `${name} 로그인`);
 
   } catch(e) {
-    err.textContent='연결 오류가 발생했습니다. 다시 시도해주세요.';
+    console.error(e);
+    err.textContent = '연결 오류가 발생했습니다. 다시 시도해주세요.';
   }
   btn.disabled=false; btn.textContent='로그인';
 }
