@@ -1350,7 +1350,23 @@ async function recordLog(action, detail='') {
 // ════════════════════════════════
 // 로그 탭
 // ════════════════════════════════
+let userNameMap = {}; // email → name 매핑
+
+async function loadUserNames() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/users?select=email,name`, {
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`}
+    });
+    const users = await res.json();
+    userNameMap = {};
+    users.forEach(u=>{ userNameMap[u.email] = u.name; });
+  } catch(e){}
+}
+
 async function loadLogs() {
+  // 첫 로드시 사용자 이름 매핑 가져오기
+  if(Object.keys(userNameMap).length === 0) await loadUserNames();
+
   const userFilter = document.getElementById('log-user-filter').value;
   const actionFilter = document.getElementById('log-action-filter').value;
   const dateFrom = document.getElementById('log-date-from').value;
@@ -1376,11 +1392,18 @@ async function loadLogs() {
     document.getElementById('log-download').textContent = todayLogs.filter(l=>l.action?.includes('다운로드')).length;
     document.getElementById('log-total').textContent = logs.length;
 
-    // 사용자 필터 옵션 구성
+    // 사용자 필터 옵션 — 이름으로 표시, 이메일로 필터
     const sel = document.getElementById('log-user-filter');
-    const emails = [...new Set(logs.map(l=>l.user_email).filter(Boolean))];
     const existing = [...sel.options].map(o=>o.value);
-    emails.forEach(e=>{ if(!existing.includes(e)){ const o=document.createElement('option');o.value=e;o.textContent=e;sel.appendChild(o); }});
+    const emails = [...new Set(logs.map(l=>l.user_email).filter(Boolean))];
+    emails.forEach(email=>{
+      if(!existing.includes(email)){
+        const o=document.createElement('option');
+        o.value=email;
+        o.textContent=userNameMap[email]||email; // 이름 있으면 이름, 없으면 이메일
+        sel.appendChild(o);
+      }
+    });
 
   } catch(e){ showToast('⚠ 로그 불러오기 실패'); }
 }
@@ -1391,9 +1414,10 @@ function renderLogs(logs) {
   const actionClass = a => a==='로그인'?'log-login':a?.includes('다운로드')?'log-download':a==='검색'?'log-search':'log-memo';
   tbody.innerHTML = logs.map(l=>{
     const dt = l.created_at ? new Date(l.created_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '—';
+    const displayName = userNameMap[l.user_email] || l.user_email || '—';
     return `<tr>
       <td style="font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap;">${dt}</td>
-      <td style="font-weight:600;">${l.user_email||'—'}</td>
+      <td style="font-weight:600;" title="${l.user_email||''}">${displayName}</td>
       <td><span class="log-badge ${actionClass(l.action)}">${l.action||'—'}</span></td>
       <td style="font-size:13px;color:var(--text2);">${l.detail||'—'}</td>
       <td style="font-size:12px;">${l.device||'—'}</td>
