@@ -126,6 +126,28 @@
   /* 주소록 동기화 상태 */
   .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--accent2);animation:pulse 2s infinite;display:inline-block;}
   .sync-dot.loading{background:#d97706;}
+  .login-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:40px;width:420px;max-width:95vw;box-shadow:0 8px 40px rgba(60,80,180,.12);}
+  .login-logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;margin-bottom:8px;}
+  .login-sub{color:var(--text2);font-size:13px;margin-bottom:32px;}
+  .login-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block;}
+  .login-input{width:100%;padding:11px 14px;border:1px solid var(--border2);border-radius:10px;font-size:14px;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;margin-bottom:16px;}
+  .login-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,110,245,.1);}
+  .login-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:background .15s;margin-top:4px;}
+  .login-btn:hover{background:#2d5ee0;}
+  .login-btn:disabled{background:var(--border2);cursor:not-allowed;}
+  .login-error{color:#e24b4a;font-size:13px;margin-top:8px;text-align:center;min-height:20px;}
+  .login-user{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);}
+  .logout-btn{background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+  .logout-btn:hover{border-color:var(--danger);color:var(--danger);}
+
+  /* 로그 탭 */
+  .log-table td{font-size:13px;padding:10px 14px;}
+  .log-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;}
+  .log-login{background:#e6f8f2;color:#0fad74;}
+  .log-download{background:#e8eeff;color:#3b6ef5;}
+  .log-search{background:#fff3e8;color:#d97706;}
+</style>
 
   /* Detail Modal */
   .modal-overlay{position:fixed;inset:0;background:rgba(20,25,60,.4);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px);padding:20px;}
@@ -175,19 +197,61 @@
 
   .toast{position:fixed;bottom:28px;right:28px;background:var(--surface);border:1px solid #b8ebd8;color:var(--accent2);padding:11px 16px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transform:translateY(10px);transition:all .25s;pointer-events:none;box-shadow:0 4px 16px rgba(60,80,180,.1);}
   .toast.show{opacity:1;transform:translateY(0);}
+
+  /* 로그인 화면 */
+  .login-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;}
+  .login-overlay.hidden{display:none;}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:40px;width:420px;max-width:95vw;box-shadow:0 8px 40px rgba(60,80,180,.12);}
+  .login-logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;margin-bottom:8px;}
+  .login-sub{color:var(--text2);font-size:13px;margin-bottom:32px;}
+  .login-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block;}
+  .login-input{width:100%;padding:11px 14px;border:1px solid var(--border2);border-radius:10px;font-size:14px;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;margin-bottom:16px;}
+  .login-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,110,245,.1);}
+  .login-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:background .15s;margin-top:4px;}
+  .login-btn:hover{background:#2d5ee0;}
+  .login-btn:disabled{background:var(--border2);color:var(--text3);cursor:not-allowed;}
+  .login-error{color:#e24b4a;font-size:13px;margin-top:10px;text-align:center;min-height:20px;}
+  .logout-btn{background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-left:8px;}
+  .logout-btn:hover{border-color:#e24b4a;color:#e24b4a;}
+
+  /* 로그 탭 */
+  .log-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;}
+  .log-login{background:#e6f8f2;color:#0fad74;}
+  .log-download{background:#e8eeff;color:#3b6ef5;}
+  .log-search{background:#fff3e8;color:#d97706;}
+  .log-memo{background:#f0eaff;color:#7c4dcc;}
 </style>
 </head>
 <body>
 
+<!-- 로그인 화면 -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo"><div class="logo-dot"></div>엑티브 M2M 브릿지</div>
+    <div class="login-sub">승인된 계정으로만 접속 가능합니다</div>
+    <label class="login-label">이메일</label>
+    <input type="email" class="login-input" id="login-email" placeholder="이메일 입력" onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()">
+    <label class="login-label">비밀번호</label>
+    <input type="password" class="login-input" id="login-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
 <div class="header">
   <div class="logo" onclick="switchTab('crm')" style="cursor:pointer;"><div class="logo-dot"></div>엑티브 M2M 브릿지</div>
-  <div class="header-right" id="conn-status">● Supabase 연결됨</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span id="conn-status" style="color:var(--accent2);font-size:13px;font-family:'JetBrains Mono',monospace;font-weight:500;">● Supabase 연결됨</span>
+    <span id="user-display" style="font-size:13px;color:var(--text2);"></span>
+    <button class="logout-btn" id="logout-btn" onclick="doLogout()" style="display:none;">로그아웃</button>
+  </div>
 </div>
 
 <!-- 탭 -->
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('crm')">📋 고객 DB</button>
   <button class="tab-btn" onclick="switchTab('ab')">📒 주소록</button>
+  <button class="tab-btn" id="log-tab-btn" onclick="switchTab('log')" style="display:none;">📊 접속 로그</button>
 </div>
 
 <!-- ══════════════════════════════════
@@ -331,7 +395,61 @@
 </div>
 </div>
 
-<!-- 주소록 추가/수정 모달 -->
+<!-- ══════════════════════════════════
+     탭 3: 접속 로그
+══════════════════════════════════ -->
+<div class="tab-panel" id="tab-log">
+<div class="main">
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">오늘 접속</div><div class="stat-value accent" id="log-today">—</div></div>
+    <div class="stat-card"><div class="stat-label">오늘 다운로드</div><div class="stat-value green" id="log-download">—</div></div>
+    <div class="stat-card"><div class="stat-label">전체 로그</div><div class="stat-value" id="log-total">—</div></div>
+  </div>
+
+  <div class="controls">
+    <select id="log-user-filter" style="min-width:180px;"><option value="">전체 사용자</option></select>
+    <select id="log-action-filter">
+      <option value="">전체 작업</option>
+      <option value="로그인">로그인</option>
+      <option value="엑셀 다운로드">엑셀 다운로드</option>
+      <option value="CSV 다운로드">CSV 다운로드</option>
+      <option value="검색">검색</option>
+    </select>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <span style="font-size:12px;color:var(--text2);white-space:nowrap;">날짜</span>
+      <input type="date" id="log-date-from" style="padding:7px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;cursor:pointer;">
+      <span style="color:var(--text3);">~</span>
+      <input type="date" id="log-date-to" style="padding:7px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;cursor:pointer;">
+    </div>
+    <button class="btn btn-accent" onclick="loadLogs()">조회</button>
+    <button class="btn btn-ghost" onclick="resetLogFilters()">초기화</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>일시</th>
+            <th>사용자</th>
+            <th>작업</th>
+            <th>상세</th>
+            <th>기기</th>
+            <th>브라우저</th>
+            <th>OS</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody id="log-table-body"></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span id="log-page-info">— / —</span>
+      <div class="page-btns" id="log-page-btns"></div>
+    </div>
+  </div>
+</div>
+</div>
 <div class="modal-overlay" id="ab-modal">
   <div class="modal" style="width:520px;">
     <div class="modal-header">
