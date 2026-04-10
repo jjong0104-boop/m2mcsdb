@@ -232,8 +232,7 @@
     <label class="login-label">이메일</label>
     <input type="email" class="login-input" id="login-email" placeholder="이메일 입력" onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()">
     <label class="login-label">비밀번호</label>
-    <input type="password" class="login-input" id="login-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
+    <input type="password" class="login-input" id="login-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()">    <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
@@ -534,10 +533,12 @@
 // 탭 전환
 // ════════════════════════════════
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active', (i===0&&tab==='crm')||(i===1&&tab==='ab')));
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active', (i===0&&tab==='crm')||(i===1&&tab==='ab')||(i===2&&tab==='log')));
   document.getElementById('tab-crm').classList.toggle('active', tab==='crm');
   document.getElementById('tab-ab').classList.toggle('active', tab==='ab');
+  document.getElementById('tab-log').classList.toggle('active', tab==='log');
   if(tab==='ab' && abData.length===0) loadAddressbook();
+  if(tab==='log') loadLogs();
   history.pushState({tab}, '', '#'+tab);
 }
 
@@ -1229,6 +1230,7 @@ function downloadFile(type,scope){
     XLSX.writeFile(wb,`고객DB_${scope==='selected'?'선택_':''}${today()}.xlsx`);
   }
   showToast(`✓ ${data.length}건 다운로드 완료`);
+  recordLog(type==='csv'?'CSV 다운로드':'엑셀 다운로드', `${data.length}건 / ${scope==='selected'?'선택':'전체'}`);
 }
 
 function today(){return new Date().toISOString().slice(0,10).replace(/-/g,'');}
@@ -1237,12 +1239,179 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove('show'),3000);
 }
 
+// ════════════════════════════════
+// 로그인 / 로그아웃
+// ════════════════════════════════
+let currentUser = null; // {email, name}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  if(!email||!pw){ err.textContent='이메일과 비밀번호를 입력해주세요.'; return; }
+  btn.disabled=true; btn.textContent='로그인 중...'; err.textContent='';
+  try {
+    // Supabase Auth 로그인
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({email,password:pw})
+    });
+    const data = await res.json();
+    if(!res.ok||data.error){ err.textContent='이메일 또는 비밀번호가 올바르지 않습니다.'; btn.disabled=false; btn.textContent='로그인'; return; }
+
+    // users 테이블에서 이름 조회
+    const uRes = await fetch(`${SUPABASE_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=name,role`, {
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${data.access_token}`}
+    });
+    const uData = await uRes.json();
+    const name = uData[0]?.name || email.split('@')[0];
+
+    currentUser = {email, name, token: data.access_token};
+    localStorage.setItem('bridge_session', JSON.stringify(currentUser));
+
+    // 로그인 성공 처리
+    onLoginSuccess();
+
+    // 로그 기록
+    await recordLog('로그인', `${name} 로그인`);
+
+  } catch(e) {
+    err.textContent='연결 오류가 발생했습니다. 다시 시도해주세요.';
+  }
+  btn.disabled=false; btn.textContent='로그인';
+}
+
+function onLoginSuccess() {
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('user-display').innerHTML = `<span style="color:var(--accent2);font-size:13px;">● ${currentUser.name}</span>`;
+  document.getElementById('logout-btn').style.display='';
+  document.getElementById('log-tab-btn').style.display='';
+  init();
+}
+
+function doLogout() {
+  if(!confirm('로그아웃 하시겠습니까?')) return;
+  recordLog('로그아웃', `${currentUser.name} 로그아웃`);
+  currentUser = null;
+  localStorage.removeItem('bridge_session');
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-email').value='';
+  document.getElementById('login-pw').value='';
+  document.getElementById('login-error').textContent='';
+  document.getElementById('user-display').innerHTML='';
+  document.getElementById('logout-btn').style.display='none';
+  document.getElementById('log-tab-btn').style.display='none';
+}
+
+// 세션 복원
+function restoreSession() {
+  const saved = localStorage.getItem('bridge_session');
+  if(saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      onLoginSuccess();
+    } catch(e) {
+      localStorage.removeItem('bridge_session');
+    }
+  }
+}
+
+// ════════════════════════════════
+// 로그 기록
+// ════════════════════════════════
+async function recordLog(action, detail='') {
+  if(!currentUser) return;
+  try {
+    const ua = navigator.userAgent;
+    const device = /Mobile|Android|iPhone|iPad/i.test(ua) ? '모바일' : 'PC';
+    const browser = /Edg/i.test(ua)?'Edge':/Chrome/i.test(ua)?'Chrome':/Safari/i.test(ua)?'Safari':/Firefox/i.test(ua)?'Firefox':'기타';
+    const os = /Windows/i.test(ua)?'Windows':/Mac/i.test(ua)?'Mac':/Android/i.test(ua)?'Android':/iPhone|iPad/i.test(ua)?'iOS':'기타';
+    // IP는 외부 API로 가져오기
+    let ip = '—';
+    try { const r=await fetch('https://api.ipify.org?format=json'); const d=await r.json(); ip=d.ip; } catch(e){}
+
+    await fetch(`${SUPABASE_URL}/rest/v1/access_logs`, {
+      method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({user_email:currentUser.email, action, detail, device, browser, os, ip_address:ip})
+    });
+  } catch(e){}
+}
+
+// ════════════════════════════════
+// 로그 탭
+// ════════════════════════════════
+async function loadLogs() {
+  const userFilter = document.getElementById('log-user-filter').value;
+  const actionFilter = document.getElementById('log-action-filter').value;
+  const dateFrom = document.getElementById('log-date-from').value;
+  const dateTo = document.getElementById('log-date-to').value;
+
+  let url = `${SUPABASE_URL}/rest/v1/access_logs?select=*&order=created_at.desc&limit=500`;
+  if(userFilter) url += `&user_email=eq.${encodeURIComponent(userFilter)}`;
+  if(actionFilter) url += `&action=eq.${encodeURIComponent(actionFilter)}`;
+  if(dateFrom) url += `&created_at=gte.${dateFrom}T00:00:00`;
+  if(dateTo) url += `&created_at=lte.${dateTo}T23:59:59`;
+
+  try {
+    const res = await fetch(url, {
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`}
+    });
+    const logs = await res.json();
+    renderLogs(logs);
+
+    // 통계
+    const today = new Date().toISOString().slice(0,10);
+    const todayLogs = logs.filter(l=>l.created_at?.startsWith(today));
+    document.getElementById('log-today').textContent = todayLogs.filter(l=>l.action==='로그인').length;
+    document.getElementById('log-download').textContent = todayLogs.filter(l=>l.action?.includes('다운로드')).length;
+    document.getElementById('log-total').textContent = logs.length;
+
+    // 사용자 필터 옵션 구성
+    const sel = document.getElementById('log-user-filter');
+    const emails = [...new Set(logs.map(l=>l.user_email).filter(Boolean))];
+    const existing = [...sel.options].map(o=>o.value);
+    emails.forEach(e=>{ if(!existing.includes(e)){ const o=document.createElement('option');o.value=e;o.textContent=e;sel.appendChild(o); }});
+
+  } catch(e){ showToast('⚠ 로그 불러오기 실패'); }
+}
+
+function renderLogs(logs) {
+  const tbody = document.getElementById('log-table-body');
+  if(!logs.length){ tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text3);">로그가 없습니다</td></tr>`; return; }
+  const actionClass = a => a==='로그인'?'log-login':a?.includes('다운로드')?'log-download':a==='검색'?'log-search':'log-memo';
+  tbody.innerHTML = logs.map(l=>{
+    const dt = l.created_at ? new Date(l.created_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '—';
+    return `<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap;">${dt}</td>
+      <td style="font-weight:600;">${l.user_email||'—'}</td>
+      <td><span class="log-badge ${actionClass(l.action)}">${l.action||'—'}</span></td>
+      <td style="font-size:13px;color:var(--text2);">${l.detail||'—'}</td>
+      <td style="font-size:12px;">${l.device||'—'}</td>
+      <td style="font-size:12px;">${l.browser||'—'}</td>
+      <td style="font-size:12px;">${l.os||'—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);">${l.ip_address||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function resetLogFilters() {
+  document.getElementById('log-user-filter').value='';
+  document.getElementById('log-action-filter').value='';
+  document.getElementById('log-date-from').value='';
+  document.getElementById('log-date-to').value='';
+  loadLogs();
+}
+
 document.getElementById('search-input').addEventListener('input', ()=>{});
 document.getElementById('agent-filter').addEventListener('change', applyFilters);
 document.getElementById('ab-search').addEventListener('input',filterAB);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeMemoPopup();}});
 
-init();
+// 세션 복원 또는 로그인 화면 표시
+restoreSession();
 </script>
 
 </body>
