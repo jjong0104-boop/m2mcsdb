@@ -1418,8 +1418,8 @@ async function loadUserNames() {
 }
 
 async function loadLogs() {
-  // 첫 로드시 사용자 이름 매핑 가져오기
-  if(Object.keys(userNameMap).length === 0) await loadUserNames();
+  // 매번 최신 사용자 이름 매핑 가져오기
+  await loadUserNames();
 
   const userFilter = document.getElementById('log-user-filter').value;
   const actionFilter = document.getElementById('log-action-filter').value;
