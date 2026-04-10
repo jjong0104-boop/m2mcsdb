@@ -1292,15 +1292,19 @@ async function doLogin() {
 
 function onLoginSuccess() {
   document.getElementById('login-overlay').classList.add('hidden');
-  document.getElementById('user-display').innerHTML = `<span style="color:var(--accent2);font-size:13px;">● ${currentUser.name}</span>`;
   document.getElementById('logout-btn').style.display='';
   document.getElementById('log-tab-btn').style.display='';
+  registerOnline();
+  startOnlineHeartbeat();
+  loadOnlineUsers();
   init();
 }
 
 function doLogout() {
   if(!confirm('로그아웃 하시겠습니까?')) return;
   recordLog('로그아웃', `${currentUser.name} 로그아웃`);
+  removeOnline();
+  if(onlineInterval) clearInterval(onlineInterval);
   currentUser = null;
   localStorage.removeItem('bridge_session');
   document.getElementById('login-overlay').classList.remove('hidden');
@@ -1323,6 +1327,56 @@ function restoreSession() {
       localStorage.removeItem('bridge_session');
     }
   }
+}
+
+// ════════════════════════════════
+// 현재 접속자 관리
+// ════════════════════════════════
+let onlineInterval = null;
+
+async function registerOnline() {
+  if(!currentUser) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/online_users`, {
+      method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({email:currentUser.email, name:currentUser.name, last_seen:new Date().toISOString()})
+    });
+  } catch(e){}
+}
+
+async function removeOnline() {
+  if(!currentUser) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/online_users?email=eq.${encodeURIComponent(currentUser.email)}`, {
+      method:'DELETE',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`}
+    });
+  } catch(e){}
+}
+
+async function loadOnlineUsers() {
+  try {
+    // 5분 이상 last_seen 없으면 오래된 것으로 간주, 최근 5분 이내만 조회
+    const since = new Date(Date.now() - 5*60*1000).toISOString();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/online_users?select=name,email&last_seen=gte.${since}&order=name.asc`, {
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`}
+    });
+    const users = await res.json();
+    const names = users.map(u=>u.name||u.email).join(', ');
+    const count = users.length;
+    document.getElementById('user-display').innerHTML =
+      `<span style="color:var(--accent2);font-size:13px;">● ${currentUser.name}</span>` +
+      `<span style="font-size:12px;color:var(--text2);margin-left:10px;padding:3px 10px;background:var(--surface2);border-radius:20px;border:1px solid var(--border2);" title="${names}">접속 중 ${count}명: ${names}</span>`;
+  } catch(e){}
+}
+
+function startOnlineHeartbeat() {
+  // 2분마다 last_seen 갱신 + 접속자 목록 새로고침
+  onlineInterval = setInterval(async ()=>{
+    await registerOnline();
+    await loadOnlineUsers();
+  }, 2*60*1000);
 }
 
 // ════════════════════════════════
