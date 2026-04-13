@@ -239,7 +239,6 @@
 <div class="header">
   <div class="logo" onclick="switchTab('crm')" style="cursor:pointer;"><div class="logo-dot"></div>엑티브 M2M 브릿지</div>
   <div style="display:flex;align-items:center;gap:12px;">
-    <span id="conn-status" style="color:var(--accent2);font-size:13px;font-family:'JetBrains Mono',monospace;font-weight:500;">● Supabase 연결됨</span>
     <span id="user-display" style="font-size:13px;color:var(--text2);"></span>
     <button class="logout-btn" id="logout-btn" onclick="doLogout()" style="display:none;">로그아웃</button>
   </div>
@@ -981,14 +980,14 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
     const agents = [...new Set(allData.map(d=>d.agent).filter(Boolean))].sort();
     agents.forEach(a=>{ if(!existing.includes(a)){ const o=document.createElement('option');o.value=a;o.textContent=a;asel.appendChild(o); }});
     document.getElementById('agent-count').textContent = agents.length;
-    document.getElementById('conn-status').textContent = '● Supabase 연결됨';
+    
 
     renderTable();
     renderFilterTags();
 
   } catch(e) {
     console.error(e);
-    document.getElementById('conn-status').textContent = '● 연결 오류';
+    
     document.getElementById('total-count').textContent = '오류';
     showToast('⚠ DB 연결 실패. 콘솔을 확인해주세요.');
   }
@@ -1297,6 +1296,7 @@ function onLoginSuccess() {
   registerOnline();
   startOnlineHeartbeat();
   loadOnlineUsers();
+  resetInactivityTimer();
   init();
 }
 
@@ -1305,6 +1305,7 @@ function doLogout() {
   recordLog('로그아웃', `${currentUser.name} 로그아웃`);
   removeOnline();
   if(onlineInterval) clearInterval(onlineInterval);
+  if(inactivityTimer) clearTimeout(inactivityTimer);
   currentUser = null;
   localStorage.removeItem('bridge_session');
   document.getElementById('login-overlay').classList.remove('hidden');
@@ -1328,6 +1329,48 @@ function restoreSession() {
     }
   }
 }
+
+// ════════════════════════════════
+// 자동 로그아웃
+// ════════════════════════════════
+const AUTO_LOGOUT_MIN = 30; // 30분 무활동시 자동 로그아웃
+let inactivityTimer = null;
+
+function resetInactivityTimer() {
+  if(!currentUser) return;
+  if(inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(()=>{
+    if(currentUser) {
+      showToast('⚠ 30분 무활동으로 자동 로그아웃됩니다.');
+      setTimeout(()=>{
+        recordLog('자동 로그아웃', '30분 무활동');
+        removeOnline();
+        currentUser = null;
+        localStorage.removeItem('bridge_session');
+        document.getElementById('login-overlay').classList.remove('hidden');
+        document.getElementById('user-display').innerHTML='';
+        document.getElementById('logout-btn').style.display='none';
+        document.getElementById('log-tab-btn').style.display='none';
+        if(onlineInterval) clearInterval(onlineInterval);
+      }, 3000);
+    }
+  }, AUTO_LOGOUT_MIN * 60 * 1000);
+}
+
+// 마우스/키보드 활동 감지
+['mousemove','mousedown','keydown','scroll','touchstart','click'].forEach(evt=>{
+  document.addEventListener(evt, ()=>{ if(currentUser) resetInactivityTimer(); }, {passive:true});
+});
+
+// 브라우저 닫을 때 자동 로그아웃
+window.addEventListener('beforeunload', ()=>{
+  if(currentUser) {
+    // sendBeacon으로 로그아웃 처리 (비동기 안전)
+    const url = `${SUPABASE_URL}/rest/v1/online_users?email=eq.${encodeURIComponent(currentUser.email)}`;
+    navigator.sendBeacon(url + '&_method=DELETE', JSON.stringify({}));
+    localStorage.removeItem('bridge_session');
+  }
+});
 
 // ════════════════════════════════
 // 현재 접속자 관리
