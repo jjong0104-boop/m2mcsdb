@@ -1206,13 +1206,75 @@ document.addEventListener('click',e=>{
   if(popup.classList.contains('open')&&!popup.contains(e.target)) closeMemoPopup();
 });
 
-function downloadFile(type,scope){
+async function downloadFile(type, scope){
   document.getElementById('dl-menu').classList.remove('open');
+
   let data;
   if(scope==='selected'){
     if(!selectedSet.size){showToast('⚠ 선택된 항목이 없습니다');return;}
     data=allData.filter(d=>selectedSet.has(d.account));
-  } else data=filtered;
+  } else {
+    // 전체 다운로드 — Supabase에서 전체 결과 가져오기
+    showToast('⏳ 전체 데이터 불러오는 중...');
+    const q=document.getElementById('search-input').value.trim().toLowerCase();
+    const agent=document.getElementById('agent-filter').value;
+    const dateFrom=document.getElementById('date-from').value;
+    const dateTo=document.getElementById('date-to').value;
+
+    try {
+      let allRows = [];
+      let offset = 0;
+      const batchSize = 1000;
+
+      while(true) {
+        let url = `${SUPABASE_URL}/rest/v1/m2mcsdb?select=*&order=open_date.desc,id.desc&limit=${batchSize}&offset=${offset}`;
+        if(q) {
+          const qClean = q.replace(/-/g,'');
+          const qHyphen = q.replace(/[^0-9]/g,'').replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3');
+          const searches=[q];
+          if(qClean!==q) searches.push(qClean);
+          if(qHyphen!==q&&qHyphen.length>5) searches.push(qHyphen);
+          const orParts=searches.flatMap(s=>[
+            `agent.ilike.*${encodeURIComponent(s)}*`,
+            `name.ilike.*${encodeURIComponent(s)}*`,
+            `bizname.ilike.*${encodeURIComponent(s)}*`,
+            `account.ilike.*${encodeURIComponent(s)}*`,
+            `subnum.ilike.*${encodeURIComponent(s)}*`,
+            `opennum.ilike.*${encodeURIComponent(s)}*`,
+            `biznum.ilike.*${encodeURIComponent(s)}*`,
+            `memo.ilike.*${encodeURIComponent(s)}*`,
+          ]);
+          url += `&or=(${orParts.join(',')})`;
+        }
+        if(agent) url += `&agent=eq.${encodeURIComponent(agent)}`;
+        if(dateFrom) url += `&open_date=gte.${dateFrom}`;
+        if(dateTo) url += `&open_date=lte.${dateTo}`;
+
+        const res = await fetch(url, {
+          headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`}
+        });
+        const batch = await res.json();
+        if(!batch.length) break;
+        allRows = allRows.concat(batch);
+        if(batch.length < batchSize) break;
+        offset += batchSize;
+      }
+
+      data = allRows.map(d=>({
+        agent: d.agent||'', open_date: d.open_date?d.open_date.substring(0,10):'',
+        name: d.name||'', bizname: d.bizname||'', biznum: d.biznum||'',
+        opennum: d.opennum||'', account: d.account||'', subnum: d.subnum||'',
+        plan: d.plan||'', device: d.device||'', deviceSerial: d.device_serial||'',
+        usimName: d.usim_name||'', usimSerial: d.usim_serial||'',
+        subsidy: d.subsidy||'', dealerFee: d.dealer_fee||'',
+        companyFee: d.company_fee||'', memo: d.memo||'',
+      }));
+    } catch(e) {
+      showToast('⚠ 데이터 불러오기 실패');
+      return;
+    }
+  }
+
   const allFields=DETAIL_SECTIONS.flatMap(s=>s.fields);
   const headers=[...allFields.map(f=>f.label),'메모'];
   const rows=data.map(d=>[...allFields.map(f=>d[f.key]||''),memos[d.account]||'']);
