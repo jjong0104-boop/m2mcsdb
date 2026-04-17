@@ -1456,7 +1456,7 @@ async function loadUserNames() {
     });
     const users = await res.json();
     userNameMap = {};
-    users.forEach(u=>{ userNameMap[u.email] = u.name; });
+    users.forEach(u=>{ userNameMap[u.email.toLowerCase()] = u.name; });
   } catch(e){}
 }
 
@@ -1497,7 +1497,7 @@ async function loadLogs() {
       if(!existing.includes(email)){
         const o=document.createElement('option');
         o.value=email;
-        o.textContent=userNameMap[email]||email; // 이름 있으면 이름, 없으면 이메일
+        o.textContent=userNameMap[email.toLowerCase()]||email;
         sel.appendChild(o);
       }
     });
@@ -1511,7 +1511,7 @@ function renderLogs(logs) {
   const actionClass = a => a==='로그인'?'log-login':a?.includes('다운로드')?'log-download':a==='검색'?'log-search':'log-memo';
   tbody.innerHTML = logs.map(l=>{
     const dt = l.created_at ? new Date(l.created_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '—';
-    const displayName = userNameMap[l.user_email] || l.user_email || '—';
+    const displayName = userNameMap[(l.user_email||'').toLowerCase()] || l.user_email || '—';
     return `<tr>
       <td style="font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap;">${dt}</td>
       <td style="font-weight:600;" title="${l.user_email||''}">${displayName}</td>
