@@ -1275,19 +1275,32 @@ async function downloadFile(type, scope){
     }
   }
 
+  // 파일명 생성 - 검색조건 포함
+  const q=document.getElementById('search-input').value.trim();
+  const agent=document.getElementById('agent-filter').value;
+  const dateFrom=document.getElementById('date-from').value;
+  const dateTo=document.getElementById('date-to').value;
+  let fileTag = '';
+  if(q) fileTag += `_${q}`;
+  if(agent) fileTag += `_${agent}`;
+  if(dateFrom) fileTag += `_${dateFrom}`;
+  if(dateTo) fileTag += `~${dateTo}`;
+  if(!fileTag) fileTag = '_전체';
+  const fileName = `고객DB${scope==='selected'?'_선택':fileTag}_${today()}`;
+
   const allFields=DETAIL_SECTIONS.flatMap(s=>s.fields);
   const headers=[...allFields.map(f=>f.label),'메모'];
   const rows=data.map(d=>[...allFields.map(f=>d[f.key]||''),memos[d.account]||'']);
   if(type==='csv'){
     const csv='\uFEFF'+[headers,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-    a.download=`고객DB_${scope==='selected'?'선택_':''}${today()}.csv`;a.click();
+    a.download=`${fileName}.csv`;a.click();
   } else {
     const wb=XLSX.utils.book_new();
     const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
     ws['!cols']=headers.map(()=>({wch:16}));
     XLSX.utils.book_append_sheet(wb,ws,'고객DB');
-    XLSX.writeFile(wb,`고객DB_${scope==='selected'?'선택_':''}${today()}.xlsx`);
+    XLSX.writeFile(wb,`${fileName}.xlsx`);
   }
   showToast(`✓ ${data.length}건 다운로드 완료`);
   recordLog(type==='csv'?'CSV 다운로드':'엑셀 다운로드', `${data.length}건 / ${scope==='selected'?'선택':'전체'}`);
