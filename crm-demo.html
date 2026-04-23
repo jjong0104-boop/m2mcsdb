@@ -934,6 +934,9 @@ async function loadFromSupabase(q='', agent='', dateFrom='', dateTo='') {
       memo:       d.memo||'',
     }));
 
+    // 메모 로컬 캐시 업데이트
+    allData.forEach(d=>{ if(d.memo) memos[d.account] = d.memo; });
+
     filtered = [...allData];
 
     // 전체 건수 (조건 없이)
@@ -1143,10 +1146,26 @@ function openModal(idx){
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');currentRecord=null;}
 function closeModalOutside(e){if(e.target===document.getElementById('modal')) closeModal();}
-function saveMemo(){
+
+async function saveMemo(){
   if(!currentRecord) return;
-  memos[currentRecord.account]=document.getElementById('memo-input').value.trim();
-  renderTable();closeModal();showToast('✓ 메모가 저장되었습니다');
+  const memo = document.getElementById('memo-input').value.trim();
+  const account = currentRecord.account;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/m2mcsdb?account=eq.${encodeURIComponent(account)}`, {
+      method:'PATCH',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({memo})
+    });
+    if(res.ok||res.status===204) {
+      memos[account] = memo;
+      renderTable();
+      closeModal();
+      showToast('✓ 메모가 저장되었습니다');
+    } else {
+      showToast('⚠ 메모 저장 실패');
+    }
+  } catch(e){ showToast('⚠ 오류가 발생했습니다'); }
 }
 
 // 메모 팝업
@@ -1192,10 +1211,24 @@ function cancelMemoEdit(){
   document.getElementById('mp-save').style.display='none';
   document.getElementById('mp-cancel').style.display='none';
 }
-function saveMemoPopup(){
+async function saveMemoPopup(){
   if(!mpAccount) return;
-  memos[mpAccount]=document.getElementById('mp-textarea').value.trim();
-  renderTable();closeMemoPopup();showToast('✓ 메모가 저장되었습니다');
+  const memo = document.getElementById('mp-textarea').value.trim();
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/m2mcsdb?account=eq.${encodeURIComponent(mpAccount)}`, {
+      method:'PATCH',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${currentUser.token}`,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({memo})
+    });
+    if(res.ok||res.status===204) {
+      memos[mpAccount] = memo;
+      renderTable();
+      closeMemoPopup();
+      showToast('✓ 메모가 저장되었습니다');
+    } else {
+      showToast('⚠ 메모 저장 실패');
+    }
+  } catch(e){ showToast('⚠ 오류가 발생했습니다'); }
 }
 
 // 다운로드
