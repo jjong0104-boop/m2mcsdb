@@ -1351,6 +1351,14 @@ function showToast(msg){
 let currentUser = null; // {email, name}
 
 async function doLogin() {
+  // 대한민국 시간 체크 (오전 8시 ~ 오후 8시만 접속 가능)
+  const now = new Date();
+  const krTime = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
+  const hour = krTime.getHours();
+  if(hour < 8 || hour >= 20) {
+    document.getElementById('login-error').textContent = '⏰ 접속 가능 시간은 오전 8시 ~ 오후 8시입니다 (한국 시간)';
+    return;
+  }
   const email = document.getElementById('login-email').value.trim();
   const pw = document.getElementById('login-pw').value;
   const btn = document.getElementById('login-btn');
@@ -1425,11 +1433,24 @@ function doLogout() {
   document.getElementById('log-tab-btn').style.display='none';
 }
 
+// 한국 시간 접속 가능 여부 체크
+function isAccessTime() {
+  const now = new Date();
+  const krTime = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
+  const hour = krTime.getHours();
+  return hour >= 8 && hour < 20;
+}
+
 // 세션 복원
 function restoreSession() {
   const saved = localStorage.getItem('bridge_session');
   if(saved) {
     try {
+      if(!isAccessTime()) {
+        localStorage.removeItem('bridge_session');
+        document.getElementById('login-error').textContent = '⏰ 접속 가능 시간은 오전 8시 ~ 오후 8시입니다 (한국 시간)';
+        return;
+      }
       currentUser = JSON.parse(saved);
       onLoginSuccess();
     } catch(e) {
@@ -1523,8 +1544,24 @@ async function loadOnlineUsers() {
 }
 
 function startOnlineHeartbeat() {
-  // 2분마다 last_seen 갱신 + 접속자 목록 새로고침
   onlineInterval = setInterval(async ()=>{
+    // 접속 가능 시간 체크 - 오후 8시 이후면 자동 로그아웃
+    if(!isAccessTime()) {
+      showToast('⏰ 접속 가능 시간이 종료되었습니다. 자동 로그아웃됩니다.');
+      setTimeout(()=>{
+        removeOnline();
+        currentUser = null;
+        localStorage.removeItem('bridge_session');
+        document.getElementById('login-overlay').classList.remove('hidden');
+        document.getElementById('login-error').textContent = '⏰ 접속 가능 시간은 오전 8시 ~ 오후 8시입니다 (한국 시간)';
+        document.getElementById('user-display').innerHTML='';
+        document.getElementById('logout-btn').style.display='none';
+        document.getElementById('log-tab-btn').style.display='none';
+        if(onlineInterval) clearInterval(onlineInterval);
+        if(inactivityTimer) clearTimeout(inactivityTimer);
+      }, 3000);
+      return;
+    }
     await registerOnline();
     await loadOnlineUsers();
   }, 2*60*1000);
